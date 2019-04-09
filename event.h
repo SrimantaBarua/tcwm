@@ -10,7 +10,7 @@
 
 
 // Handle X events
-int event_handle(struct tcwm *tcwm, XEvent *ev);
+int event_handle(struct tcwm *tcwm, xcb_generic_event_t *ev);
 
 
 #endif // __TCWM_EVENT_H__

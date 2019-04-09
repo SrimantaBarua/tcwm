@@ -13,10 +13,10 @@ CPPFLAGS?=-D__SCWM_DEBUG__
 LDFLAGS?=
 LIBS?=
 
-CFLAGS+=-O2 -MMD `pkg-config --cflags x11`
+CFLAGS+=-O2 -MMD `pkg-config --cflags xcb`
 CPPFLAGS+=
 LDFLAGS+=
-LIBS+=`pkg-config --libs x11`
+LIBS+=`pkg-config --libs xcb`
 
 .PHONY: build clean
 

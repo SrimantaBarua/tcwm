@@ -6,14 +6,16 @@
 #define __TCWM_TCWM_H__
 
 
-#include <X11/Xlib.h>
+#include <xcb/xcb.h>
 
 
 // Store tcwm global state
 struct tcwm {
-	// ---- Xlib stuff --------
-	Display *dpy; // Handle to Xlib display
-	Window  root; // Handle to root window
+	// ---- XCB stuff --------
+	xcb_connection_t *conn;   // Connection to X server
+	xcb_screen_t     *screen; // Structure for default screen
+	int              scrnum;  // Default screen number
+	int              xfd;     // FD for X connection
 };
 
 

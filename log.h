@@ -24,10 +24,10 @@
 // -------- Info messages ----------------
 
 #define info(msg) \
-	fprintf(stderr, "[INFO] %s:%s:%d: " msg "\n", __FILE__, __func__, __LINE__)
+	fprintf(stderr, "[INFO] " msg "\n")
 
 #define info_fmt(fmt, ...) \
-	fprintf(stderr, "[INFO] %s:%s:%d: " fmt "\n", __FILE__, __func__, __LINE__, __VA_ARGS__)
+	fprintf(stderr, "[INFO] " fmt "\n", __VA_ARGS__)
 
 
 // -------- Warning messages ----------------

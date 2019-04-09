@@ -52,48 +52,87 @@ static const char *_evname(int ev) {
 }
 
 
-// Handle CreateNotify event
-static void _handle_create_notify(struct tcwm *tcwm, XCreateWindowEvent *ev) {
-	info_fmt("CreateNotify: window: %lu", ev->window);
+// Handle XCB_CREATE_NOTIFY
+static void _handle_create_notify(struct tcwm *tcwm, xcb_create_notify_event_t *ev) {
+	info_fmt("XCB_CREATE_NOTIFY: window: %u", ev->window);
 }
 
 
-// Handle ConfigureRequest event
-static void _handle_configure_request(struct tcwm *tcwm, XConfigureRequestEvent *ev) {
-	XWindowChanges changes;
-	changes.x = ev->x;
-	changes.y = ev->y;
-	changes.width = ev->width;
-	changes.height = ev->height;
-	changes.border_width = ev->border_width;
-	changes.sibling = ev->above;
-	changes.stack_mode = ev->detail;
-	XConfigureWindow(tcwm->dpy, ev->window, ev->value_mask, &changes);
-	XSync(tcwm->dpy, False);
+// Handle XCB_CONFIGURE_REQUEST
+static void _handle_configure_request(struct tcwm *tcwm, xcb_configure_request_event_t *ev) {
+	xcb_generic_error_t *err;
+	uint32_t values[7], mask = 0, i = 0;
+
+	info_fmt("XCB_CONFIGURE_REQUEST: window: %u", ev->window);
+	if (ev->value_mask & XCB_CONFIG_WINDOW_X) {
+		mask |= XCB_CONFIG_WINDOW_X;
+		values[i++] = ev->x;
+	}
+	if (ev->value_mask & XCB_CONFIG_WINDOW_Y) {
+		mask |= XCB_CONFIG_WINDOW_Y;
+		values[i++] = ev->y;
+	}
+	if (ev->value_mask & XCB_CONFIG_WINDOW_WIDTH) {
+		mask |= XCB_CONFIG_WINDOW_WIDTH;
+		values[i++] = ev->width;
+	}
+	if (ev->value_mask & XCB_CONFIG_WINDOW_HEIGHT) {
+		mask |= XCB_CONFIG_WINDOW_HEIGHT;
+		values[i++] = ev->height;
+	}
+	if (ev->value_mask & XCB_CONFIG_WINDOW_BORDER_WIDTH) {
+		mask |= XCB_CONFIG_WINDOW_BORDER_WIDTH;
+		values[i++] = ev->border_width;
+	}
+	if (ev->value_mask & XCB_CONFIG_WINDOW_SIBLING) {
+		mask |= XCB_CONFIG_WINDOW_SIBLING;
+		values[i++] = ev->sibling;
+	}
+	if (ev->value_mask & XCB_CONFIG_WINDOW_STACK_MODE) {
+		mask |= XCB_CONFIG_WINDOW_STACK_MODE;
+		values[i++] = ev->stack_mode;
+	}
+	err = xcb_request_check(tcwm->conn, xcb_configure_window_checked(tcwm->conn, ev->window, mask, values));
+	if (err) {
+		die_fmt("xcb_configure_window_checked(): Error code: %u", err->error_code);
+	}
 }
 
 
-// Handle MapRequest event
-static void _handle_map_request(struct tcwm *tcwm, XMapRequestEvent *ev) {
-	info_fmt("MapRequest: window: %lu", ev->window);
-	XMapWindow(tcwm->dpy, ev->window);
+// Handle XCB_MAP_REQUEST
+static void _handle_map_request(struct tcwm *tcwm, xcb_map_request_event_t *ev) {
+	xcb_generic_error_t *err;
+
+	info_fmt("XCB_MAP_REQUEST: window: %u", ev->window);
+	err = xcb_request_check(tcwm->conn, xcb_map_window_checked(tcwm->conn, ev->window));
+	if (err) {
+		die_fmt("xcb_map_window_checked(): Error code: %u", err->error_code);
+	}
+}
+
+
+// Handle XCB_UNMAP_NOTIFY
+static void _handle_unmap_notify(struct tcwm *tcwm, xcb_unmap_notify_event_t *ev) {
+	info_fmt("XCB_UNMAP_NOTIFY: window: %u", ev->window);
 }
 
 
 // Handle X events
-int event_handle(struct tcwm *tcwm, XEvent *ev) {
-	switch (ev->type) {
-	case CreateNotify:
-		_handle_create_notify(tcwm, &ev->xcreatewindow);
+int event_handle(struct tcwm *tcwm, xcb_generic_event_t *ev) {
+	switch (ev->response_type) {
+	case XCB_CREATE_NOTIFY:
+		_handle_create_notify(tcwm, (xcb_create_notify_event_t*) ev);
 		break;
-	case ConfigureRequest:
-		_handle_configure_request(tcwm, &ev->xconfigurerequest);
+	case XCB_CONFIGURE_REQUEST:
+		_handle_configure_request(tcwm, (xcb_configure_request_event_t*) ev);
 		break;
-	case MapRequest:
-		_handle_map_request(tcwm, &ev->xmaprequest);
+	case XCB_MAP_REQUEST:
+		_handle_map_request(tcwm, (xcb_map_request_event_t*) ev);
 		break;
+	case XCB_UNMAP_NOTIFY:
+		_handle_unmap_notify(tcwm, (xcb_unmap_notify_event_t*) ev);
 	default:
-		info_fmt("Event: %s (%u)", _evname(ev->type), ev->type);
+		info_fmt("Event: %s (%u)", _evname(ev->response_type), ev->response_type);
 	}
 	return 0;
 }
