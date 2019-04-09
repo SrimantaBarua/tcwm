@@ -67,6 +67,9 @@ static struct tcwm* _init_everything() {
 	}
 	// Get fd for X connection
 	tcwm->xfd = xcb_get_file_descriptor(tcwm->conn);
+	// Initialize hash tables
+	tcwm->ht_frame = htable_u32_new();
+	tcwm->ht_client = htable_u32_new();
 	return tcwm;
 }
 

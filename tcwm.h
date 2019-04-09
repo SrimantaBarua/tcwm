@@ -8,14 +8,19 @@
 
 #include <xcb/xcb.h>
 
+#include "htable.h"
+
 
 // Store tcwm global state
 struct tcwm {
 	// ---- XCB stuff --------
-	xcb_connection_t *conn;   // Connection to X server
-	xcb_screen_t     *screen; // Structure for default screen
-	int              scrnum;  // Default screen number
-	int              xfd;     // FD for X connection
+	xcb_connection_t  *conn;      // Connection to X server
+	xcb_screen_t      *screen;    // Structure for default screen
+	int               scrnum;     // Default screen number
+	int               xfd;        // FD for X connection
+	// ---- Clients --------
+	struct htable_u32 *ht_frame;  // Map child window_id to frame window_id
+	struct htable_u32 *ht_client; // Map frame window_id to client structure
 };
 
 

@@ -4,6 +4,7 @@
 
 #include "log.h"
 #include "event.h"
+#include "client.h"
 
 
 // Return string representation of X event
@@ -60,60 +61,22 @@ static void _handle_create_notify(struct tcwm *tcwm, xcb_create_notify_event_t *
 
 // Handle XCB_CONFIGURE_REQUEST
 static void _handle_configure_request(struct tcwm *tcwm, xcb_configure_request_event_t *ev) {
-	xcb_generic_error_t *err;
-	uint32_t values[7], mask = 0, i = 0;
-
 	info_fmt("XCB_CONFIGURE_REQUEST: window: %u", ev->window);
-	if (ev->value_mask & XCB_CONFIG_WINDOW_X) {
-		mask |= XCB_CONFIG_WINDOW_X;
-		values[i++] = ev->x;
-	}
-	if (ev->value_mask & XCB_CONFIG_WINDOW_Y) {
-		mask |= XCB_CONFIG_WINDOW_Y;
-		values[i++] = ev->y;
-	}
-	if (ev->value_mask & XCB_CONFIG_WINDOW_WIDTH) {
-		mask |= XCB_CONFIG_WINDOW_WIDTH;
-		values[i++] = ev->width;
-	}
-	if (ev->value_mask & XCB_CONFIG_WINDOW_HEIGHT) {
-		mask |= XCB_CONFIG_WINDOW_HEIGHT;
-		values[i++] = ev->height;
-	}
-	if (ev->value_mask & XCB_CONFIG_WINDOW_BORDER_WIDTH) {
-		mask |= XCB_CONFIG_WINDOW_BORDER_WIDTH;
-		values[i++] = ev->border_width;
-	}
-	if (ev->value_mask & XCB_CONFIG_WINDOW_SIBLING) {
-		mask |= XCB_CONFIG_WINDOW_SIBLING;
-		values[i++] = ev->sibling;
-	}
-	if (ev->value_mask & XCB_CONFIG_WINDOW_STACK_MODE) {
-		mask |= XCB_CONFIG_WINDOW_STACK_MODE;
-		values[i++] = ev->stack_mode;
-	}
-	err = xcb_request_check(tcwm->conn, xcb_configure_window_checked(tcwm->conn, ev->window, mask, values));
-	if (err) {
-		die_fmt("xcb_configure_window_checked(): Error code: %u", err->error_code);
-	}
+	client_configure(tcwm, ev);
 }
 
 
 // Handle XCB_MAP_REQUEST
 static void _handle_map_request(struct tcwm *tcwm, xcb_map_request_event_t *ev) {
-	xcb_generic_error_t *err;
-
 	info_fmt("XCB_MAP_REQUEST: window: %u", ev->window);
-	err = xcb_request_check(tcwm->conn, xcb_map_window_checked(tcwm->conn, ev->window));
-	if (err) {
-		die_fmt("xcb_map_window_checked(): Error code: %u", err->error_code);
-	}
+	client_manage(tcwm, ev->window);
 }
 
 
 // Handle XCB_UNMAP_NOTIFY
 static void _handle_unmap_notify(struct tcwm *tcwm, xcb_unmap_notify_event_t *ev) {
 	info_fmt("XCB_UNMAP_NOTIFY: window: %u", ev->window);
+	client_unmanage(tcwm, ev->window);
 }
 
 
@@ -131,6 +94,12 @@ int event_handle(struct tcwm *tcwm, xcb_generic_event_t *ev) {
 		break;
 	case XCB_UNMAP_NOTIFY:
 		_handle_unmap_notify(tcwm, (xcb_unmap_notify_event_t*) ev);
+		break;
+	//case XCB_MAP_NOTIFY:
+	//case XCB_CONFIGURE_NOTIFY:
+	//case XCB_REPARENT_NOTIFY:
+	//case XCB_DESTROY_NOTIFY:
+		//break;
 	default:
 		info_fmt("Event: %s (%u)", _evname(ev->response_type), ev->response_type);
 	}
