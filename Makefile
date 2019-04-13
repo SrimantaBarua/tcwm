@@ -13,7 +13,9 @@ CPPFLAGS?=-D__SCWM_DEBUG__
 LDFLAGS?=
 LIBS?=
 
-CFLAGS+=-O2 -MMD `pkg-config --cflags xcb`
+WARN=-Wall -Wextra
+
+CFLAGS+=-O2 -MMD $(WARN) `pkg-config --cflags xcb`
 CPPFLAGS+=
 LDFLAGS+=
 LIBS+=`pkg-config --libs xcb`

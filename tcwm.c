@@ -10,6 +10,7 @@
 #include "log.h"
 #include "tcwm.h"
 #include "event.h"
+#include "client.h"
 
 
 // Static instance of struct tcwm. SHOULD NOT BE ACCESSED except from within _cleanup and
@@ -25,13 +26,42 @@ static void _cleanup() {
 }
 
 
+// Reparent all existing windows
+static void _reparent_existing_windows(struct tcwm *tcwm) {
+	xcb_generic_error_t *err;
+	xcb_window_t *children;
+	unsigned num_children, i;
+	xcb_query_tree_reply_t *xqtreply;
+	// Grab X server
+	if ((err = xcb_request_check(tcwm->conn, xcb_grab_server_checked(tcwm->conn)))) {
+		die_fmt("Could not grab X server. Error code: %u", err->error_code);
+	}
+	// Query window tree
+	xqtreply = xcb_query_tree_reply(tcwm->conn, xcb_query_tree(tcwm->conn, tcwm->screen->root), &err);
+	if (err) {
+		die_fmt("Could not get tree of existing windows. Error code: %u", err->error_code);
+	}
+	if (!xqtreply) {
+		die("Could not get tree of existing windows");
+	}
+	children = xcb_query_tree_children(xqtreply);
+	num_children = xcb_query_tree_children_length(xqtreply);
+	for (i = 0; i < num_children; i++) {
+		client_manage(tcwm, children[i], true);
+	}
+	free(xqtreply);
+	// Ungrab X server
+	xcb_ungrab_server(tcwm->conn);
+	xcb_flush(tcwm->conn);
+}
+
+
 // Initialize global state
 static struct tcwm* _init_everything() {
 	struct tcwm *tcwm;
 	xcb_screen_iterator_t iter;
 	int i;
-	uint32_t mask;
-	uint32_t values[2];
+	uint32_t mask, values[2];
 	xcb_window_t root;
 	xcb_generic_error_t *err;
 
@@ -70,6 +100,22 @@ static struct tcwm* _init_everything() {
 	// Initialize hash tables
 	tcwm->ht_frame = htable_u32_new();
 	tcwm->ht_client = htable_u32_new();
+	// Get frame/border colors and size
+	tcwm->frame_height = FRAME_HEIGHT;
+	tcwm->frame_color = FRAME_COLOR;
+	tcwm->border_width = BORDER_WIDTH;
+	tcwm->border_color = BORDER_COLOR;
+	// Get number of workspaces on each axis
+	tcwm->ws_height = WS_HEIGHT;
+	tcwm->ws_width = WS_WIDTH;
+	if (!(tcwm->ws = calloc(tcwm->ws_width * tcwm->ws_height, sizeof(struct ws)))) {
+		die("calloc()");
+	}
+	for (i = 0; (unsigned) i < tcwm->ws_height * tcwm->ws_width;  i++) {
+		list_init(&tcwm->ws[i].h_clients);
+	}
+	// Reparent all existing windows
+	_reparent_existing_windows(tcwm);
 	return tcwm;
 }
 

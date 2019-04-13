@@ -3,6 +3,7 @@
 
 
 #include "log.h"
+#include "util.h"
 #include "event.h"
 #include "client.h"
 
@@ -55,6 +56,7 @@ static const char *_evname(int ev) {
 
 // Handle XCB_CREATE_NOTIFY
 static void _handle_create_notify(struct tcwm *tcwm, xcb_create_notify_event_t *ev) {
+	UNUSED(tcwm);
 	info_fmt("XCB_CREATE_NOTIFY: window: %u", ev->window);
 }
 
@@ -69,13 +71,17 @@ static void _handle_configure_request(struct tcwm *tcwm, xcb_configure_request_e
 // Handle XCB_MAP_REQUEST
 static void _handle_map_request(struct tcwm *tcwm, xcb_map_request_event_t *ev) {
 	info_fmt("XCB_MAP_REQUEST: window: %u", ev->window);
-	client_manage(tcwm, ev->window);
+	client_manage(tcwm, ev->window, false);
 }
 
 
 // Handle XCB_UNMAP_NOTIFY
 static void _handle_unmap_notify(struct tcwm *tcwm, xcb_unmap_notify_event_t *ev) {
 	info_fmt("XCB_UNMAP_NOTIFY: window: %u", ev->window);
+	// If this window existed before WM, and is being reparented, ignore
+	if (ev->event == tcwm->screen->root) {
+		return;
+	}
 	client_unmanage(tcwm, ev->window);
 }
 

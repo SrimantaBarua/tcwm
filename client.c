@@ -8,35 +8,38 @@
 #include "client.h"
 
 
-#define FRAME_COLOR  0xffffff
-#define BORDER_COLOR 0x000000
-#define FRAME_HEIGHT 20
-#define BORDER_WIDTH 1
-
-
-// Store information about a client window
-struct client {
-	xcb_window_t window;    // Actual window
-	xcb_window_t frame;     // Frame window
-	uint16_t x, y;          // Window position (top left corner)
-	uint16_t width, height; // Window dimensions (pixels)
-	uint16_t border_width;  // Window border width
-};
-
-
 // Frame a window, and return a client struct
-static struct client* _frame(struct tcwm *tcwm, xcb_window_t win) {
+static struct client* _frame(struct tcwm *tcwm, xcb_window_t win, bool older_than_wm) {
 	xcb_generic_error_t *err;
 	xcb_get_geometry_cookie_t g_cookie;
+	xcb_get_window_attributes_cookie_t wa_cookie;
 	xcb_void_cookie_t v_cookies[7];
 	xcb_get_geometry_reply_t *geom;
+	xcb_get_window_attributes_reply_t *wattr;
 	uint32_t mask, i;
 	uint32_t values[2];
 	struct client *client;
+	// Get window attributes
+	wa_cookie = xcb_get_window_attributes(tcwm->conn, win);
+	wattr = xcb_get_window_attributes_reply(tcwm->conn, wa_cookie, &err);
+	if (err) {
+		die_fmt("xcb_get_window_attributes_reply(): Error code: %u", err->error_code);
+	}
+	if (!wattr) {
+		die("xcb_get_window_attributes_reply()");
+	}
+	if (older_than_wm) {
+		if (wattr->override_redirect || wattr->map_state != XCB_MAP_STATE_VIEWABLE) {
+			free(wattr);
+			return NULL;
+		}
+	}
+	free(wattr);
 	// Allocate client
 	if (!(client = malloc(sizeof(struct client)))) {
 		die_err("malloc()");
 	}
+	list_init(&client->n_wsclients);
 	client->window = win;
 	// Get window geometry
 	g_cookie =  xcb_get_geometry(tcwm->conn, win);
@@ -56,8 +59,8 @@ static struct client* _frame(struct tcwm *tcwm, xcb_window_t win) {
 	// Create frame
 	client->frame = xcb_generate_id(tcwm->conn);
 	mask =  XCB_CW_BACK_PIXEL | XCB_CW_BORDER_PIXEL;
-	values[0] = FRAME_COLOR;
-	values[1] = BORDER_COLOR;
+	values[0] = tcwm->frame_color;
+	values[1] = tcwm->border_color;
 	v_cookies[0] = xcb_create_window_checked(tcwm->conn, XCB_COPY_FROM_PARENT, client->frame,
 						tcwm->screen->root, client->x, client->y,
 						client->width, client->height, BORDER_WIDTH,
@@ -91,7 +94,7 @@ static struct client* _frame(struct tcwm *tcwm, xcb_window_t win) {
 
 
 // Manage a window
-void client_manage(struct tcwm *tcwm, xcb_window_t window) {
+void client_manage(struct tcwm *tcwm, xcb_window_t window, bool older_than_wm) {
 	struct client *client;
 	if (!tcwm) {
 		die("NULL tcwm");
@@ -101,7 +104,10 @@ void client_manage(struct tcwm *tcwm, xcb_window_t window) {
 		return;
 	}
 	// Frame window and manage it
-	client = _frame(tcwm, window);
+	if (!(client = _frame(tcwm, window, older_than_wm))) {
+		// Probably because OVERRIDE_REDIRECT
+		return;
+	}
 	if (htable_u32_set(tcwm->ht_frame, window, (void*) (uintptr_t) client->frame) != HTE_OK) {
 		die_fmt("htable_u32_set(ht_frame, %u, %u)", window, client->frame);
 	}
@@ -132,6 +138,8 @@ void client_unmanage(struct tcwm *tcwm, xcb_window_t window) {
 	if (!(client = (struct client*) htable_u32_pop(tcwm->ht_client, frame, NULL))) {
 		die_fmt("htable_u32_pop(ht_client, %u)", frame);
 	}
+	// Remove from workspace list
+	list_del(&client->n_wsclients);
 	// Free client
 	free(client);
 	// Destroy frame
@@ -171,10 +179,10 @@ void client_configure(struct tcwm *tcwm, xcb_configure_request_event_t *ev) {
 		if (ev->value_mask & XCB_CONFIG_WINDOW_Y) {
 			mask |= XCB_CONFIG_WINDOW_Y;
 			// Modify y to be within limits
-			if (ev->y < FRAME_HEIGHT) {
-				ev->y = FRAME_HEIGHT;
+			if ((unsigned) ev->y < tcwm->frame_height) {
+				ev->y = tcwm->frame_height;
 			}
-			values[i++] = ev->y - FRAME_HEIGHT;
+			values[i++] = ev->y - tcwm->frame_height;
 			client->y = ev->y;
 		}
 		if (ev->value_mask & XCB_CONFIG_WINDOW_WIDTH) {
@@ -184,7 +192,7 @@ void client_configure(struct tcwm *tcwm, xcb_configure_request_event_t *ev) {
 		}
 		if (ev->value_mask & XCB_CONFIG_WINDOW_HEIGHT) {
 			mask |= XCB_CONFIG_WINDOW_HEIGHT;
-			values[i++] = ev->height + FRAME_HEIGHT;
+			values[i++] = ev->height + tcwm->frame_height;
 			client->x = ev->x;
 		}
 		if (ev->value_mask & XCB_CONFIG_WINDOW_BORDER_WIDTH) {
